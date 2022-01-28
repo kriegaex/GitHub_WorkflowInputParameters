@@ -1,0 +1,61 @@
+name: Build with Maven
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip-tests:
+        type: boolean
+        description: Skip tests
+        required: true
+        default: 'true'
+  push:
+    branches:
+      - '*'
+      - '!gh-pages'
+  pull_request:
+    branches:
+      - '*'
+      - '!gh-pages'
+
+jobs:
+  build:
+
+    strategy:
+      matrix:
+        #os: [ ubuntu-latest, windows-latest, macOS-latest ]
+        os: [ ubuntu-latest ]
+        #java: [ 11, 17 ]
+        java: [ 11 ]
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Print workflow input variables
+        run: |
+          echo "Input variable:           ${{ github.event.inputs.skip-tests }}"
+          echo "Simple expression:        ${{ github.event.inputs.skip-tests != 'false' }}"
+          echo "Quasi-ternary expression: ${{ github.event.inputs.skip-tests != 'false' && 'skipping' || 'executing' }}"
+
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Set up cache for ~./m2/repository
+        uses: actions/cache@v2.1.7
+        with:
+          path: |
+            ~/.m2/repository
+            !~/.m2/repository/org/example
+          key: maven-${{ matrix.os }}-java${{ matrix.java }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ matrix.os }}-java${{ matrix.java }}-
+            maven-${{ matrix.os }}-
+
+      - name: Set up JDK ${{ matrix.java }}
+        uses: actions/setup-java@v2.5.0
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: adopt-hotspot
+
+      - name: Build + package, ${{ github.event.inputs.skip-tests != 'false' && 'skipping' || 'executing' }} tests
+        run: mvn --errors --batch-mode -DskipTests=${{ github.event.inputs.skip-tests != 'false' }} clean verify
